@@ -29,9 +29,8 @@ Route::get('/kunjungan/pilih', function () {
     return view('kunjungan.pilih');
 })->name('kunjungan.pilih');
 
-Route::get('/kunjungan/anggota', [KunjunganController::class, 'formAnggota'])->name('kunjungan.anggota.form');
-Route::post('/kunjungan/anggota/store', [KunjunganController::class, 'simpanAnggota'])->name('kunjungan.anggota.store');
-Route::post('/kunjungan/anggota/store', [KunjunganController::class, 'storeAnggota'])->name('kunjungan.anggota.store');
+Route::get('/kunjungan/anggota', [KunjunganController::class, 'formAnggota'])->name('kunjungan.anggota');
+Route::post('/kunjungan/anggota', [KunjunganController::class, 'storeAnggota'])->name('kunjungan.anggota.store');
 
 Route::get('/kunjungan/anggota', [KunjunganController::class, 'createAnggota'])->name('kunjungan.anggota');
 Route::post('/kunjungan/anggota/store', [KunjunganController::class, 'storeAnggota'])->name('kunjungan.anggota.store');

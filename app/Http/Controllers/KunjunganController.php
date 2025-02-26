@@ -38,62 +38,96 @@ class KunjunganController extends Controller
         return view('kunjungan.index', compact('kunjungans', 'fakultas'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        return view('kunjungan.create');
+        // Jika tidak ada parameter jenis, tampilkan halaman create
+        if (!$request->has('jenis')) {
+            return view('kunjungan.create');
+        }
+        
+        $jenis = $request->query('jenis');
+        
+        switch ($jenis) {
+            case 'mahasiswa':
+                return view('kunjungan.form_mahasiswa');
+            case 'umum':
+                return view('kunjungan.form_umum');
+            case 'anggota':
+                return view('kunjungan.form_anggota');
+            default:
+                return view('kunjungan.create');
+        }
     }
 
     public function store(Request $request)
     {
-        $validatedData = $request->validate([
+        // Validasi input dasar
+        $request->validate([
             'tanggal_kunjungan' => 'required|date',
             'nama' => 'required|string|max:255',
-            'npm' => 'nullable|string|max:50',
-            'nik' => 'nullable|string|max:50',
-            'fakultas' => 'nullable|string|max:100',
-            'prodi' => 'nullable|string|max:100',
             'keperluan' => 'required|string|max:255',
-            'no_telp' => 'required|string|max:20',
-            'jenis_pengunjung' => 'required|string|in:mahasiswa,umum',
+            'no_telp' => 'required|string|max:255',
+            'jenis_pengunjung' => 'required|in:mahasiswa,umum',
         ]);
 
-        Kunjungan::create($validatedData);
+        try {
+            // Untuk Mahasiswa
+            if ($request->jenis_pengunjung === 'mahasiswa') {
+                $request->validate([
+                    'npm' => 'required|string|max:255',
+                    'fakultas' => 'required|string|max:255',
+                    'prodi' => 'required|string|max:255',
+                ]);
 
-        return view('kunjungan.success'); // Menampilkan halaman sukses
+                // Cek apakah NPM sudah pernah terdaftar
+                $existingMahasiswa = Kunjungan::where('npm', $request->npm)->first();
+
+                if ($existingMahasiswa) {
+                    return redirect()->route('kunjungan.create', ['jenis' => 'anggota'])
+                        ->with('error', 'Maaf anda sudah terdaftar sebagai anggota, silahkan isi form kunjungan pada menu anggota')
+                        ->with('npm_nik', $request->npm);
+                }
+
+            // Untuk Umum
+            } else {
+                $request->validate([
+                    'nik' => 'required|string|size:16',
+                    'pekerjaan' => 'required|string|max:255',
+                ]);
+
+                // Cek apakah NIK sudah pernah terdaftar
+                $existingUmum = Kunjungan::where('nik', $request->nik)->first();
+
+                if ($existingUmum) {
+                    return redirect()->route('kunjungan.create', ['jenis' => 'anggota'])
+                        ->with('error', 'Maaf anda sudah terdaftar sebagai anggota, silahkan isi form kunjungan pada menu anggota')
+                        ->with('npm_nik', $request->nik);
+                }
+            }
+
+            // Jika belum terdaftar, simpan data baru
+            Kunjungan::create([
+                'tanggal_kunjungan' => $request->tanggal_kunjungan,
+                'nama' => $request->nama,
+                'npm' => $request->jenis_pengunjung === 'mahasiswa' ? $request->npm : null,
+                'nik' => $request->jenis_pengunjung === 'umum' ? $request->nik : null,
+                'fakultas' => $request->fakultas,
+                'prodi' => $request->prodi,
+                'pekerjaan' => $request->pekerjaan,
+                'keperluan' => $request->keperluan,
+                'no_telp' => $request->no_telp,
+                'jenis_pengunjung' => $request->jenis_pengunjung,
+            ]);
+
+            return redirect()->back()->with([
+                'success' => 'Data kunjungan berhasil disimpan!',
+                'npm_nik' => $request->jenis_pengunjung === 'mahasiswa' ? $request->npm : $request->nik
+            ]);
+
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Terjadi kesalahan! Silakan coba lagi.');
+        }
     }
-
-
-    // public function store(Request $request)
-    // {
-    //     $request->validate([
-    //         'tanggal_kunjungan' => 'required|date',
-    //         'nama' => 'required|string|max:255',
-    //         'npm' => 'nullable|string|max:20',
-    //         'fakultas' => 'nullable|string',
-    //         'program_studi' => 'nullable|string',
-    //         'nik' => 'nullable|string|max:16',
-    //         'keperluan' => 'required|string',
-    //         'no_telp' => 'required|string|max:15',
-    //     ]);
-
-    //     // try {
-    //     //         Kunjungan::create($request->all());
-
-    //     //             return redirect()->route('kunjungan.create')->with([
-    //     //                 'success' => 'Data kunjungan berhasil disimpan!',
-    //     //                 'npm_nik' => $request->npm
-    //     //             ]);
-    //     //         } catch (\Exception $e) {
-    //     //             return redirect()->route('kunjungan.create')->with([
-    //     //                 'error' => 'NPM sudah terdaftar dalam database!',
-    //     //                 'npm_nik' => $request->npm
-    //     //             ]);
-    //     //         }
-    //     Kunjungan::create($request->all());
-    //     return redirect()->route('kunjungan.create')->with('success', 'Data berhasil ditambahkan');
-    // }
-
-
 
     public function edit($id)
     {
@@ -120,7 +154,6 @@ class KunjunganController extends Controller
         Kunjungan::findOrFail($id)->delete();
         return redirect()->route('kunjungan.index')->with('success', 'Data berhasil dihapus');
     }
-
 
     public function cetak(Request $request)
     {
@@ -153,74 +186,95 @@ class KunjunganController extends Controller
     }
 
     public function formAnggota()
-{
-    return view('kunjungan.form_anggota');
-}
-
-public function simpanAnggota(Request $request)
-{
-    $request->validate([
-        'tanggal_kunjungan' => 'required|date',
-        'identitas' => 'required|string',
-        'keperluan' => 'required|string',
-    ]);
-
-    // Cek apakah identitas (NPM/NIK) sudah pernah berkunjung
-    $pengunjung = Kunjungan::where('npm', $request->identitas)
-                ->orWhere('nik', $request->identitas)
-                ->first();
-
-    if (!$pengunjung) {
-        return redirect()->back()->with('error', 'Belum pernah berkunjung sebelumnya.');
+    {
+        return view('kunjungan.form_anggota');
     }
 
-    // Simpan kunjungan baru berdasarkan identitas yang sudah ada
-    Kunjungan::create([
-        'tanggal_kunjungan' => $request->tanggal_kunjungan,
-        'nama' => $pengunjung->nama,
-        'npm' => $pengunjung->npm,
-        'nik' => $pengunjung->nik,
-        'fakultas' => $pengunjung->fakultas,
-        'prodi' => $pengunjung->prodi,
-        'keperluan' => $request->keperluan,
-        'no_telp' => $pengunjung->no_telp,
-    ]);
+    public function simpanAnggota(Request $request)
+    {
+        $request->validate([
+            'tanggal_kunjungan' => 'required|date',
+            'identitas' => 'required|string',
+            'keperluan' => 'required|string',
+        ]);
 
-    return redirect()->route('kunjungan.index')->with('success', 'Kunjungan berhasil disimpan.');
-}
+        // Cek apakah identitas (NPM/NIK) sudah pernah berkunjung
+        $pengunjung = Kunjungan::where('npm', $request->identitas)
+                    ->orWhere('nik', $request->identitas)
+                    ->first();
 
-public function storeAnggota(Request $request)
-{
-    // Validasi input
-    $request->validate([
-        'tanggal_kunjungan' => 'required|date',
-        'npm_nik' => 'required|string',
-        'keperluan' => 'required|string',
-    ]);
+        if (!$pengunjung) {
+            return redirect()->back()->with('error', 'Belum pernah berkunjung sebelumnya.');
+        }
 
-    // Cek apakah pengunjung sudah pernah berkunjung sebelumnya
-    $pengunjung = Kunjungan::where('npm', $request->npm_nik)
-        ->orWhere('nik', $request->npm_nik)
-        ->first();
+        // Simpan kunjungan baru berdasarkan identitas yang sudah ada
+        Kunjungan::create([
+            'tanggal_kunjungan' => $request->tanggal_kunjungan,
+            'nama' => $pengunjung->nama,
+            'npm' => $pengunjung->npm,
+            'nik' => $pengunjung->nik,
+            'fakultas' => $pengunjung->fakultas,
+            'prodi' => $pengunjung->prodi,
+            'keperluan' => $request->keperluan,
+            'no_telp' => $pengunjung->no_telp,
+        ]);
 
-    if (!$pengunjung) {
-        return redirect()->back()->with('error', 'Belum pernah berkunjung sebelumnya.');
+        return redirect()->route('kunjungan.index')->with('success', 'Kunjungan berhasil disimpan.');
     }
 
-    // Simpan data kunjungan baru
-    Kunjungan::create([
-        'tanggal_kunjungan' => $request->tanggal_kunjungan,
-        'nama' => $pengunjung->nama,
-        'npm' => $pengunjung->npm,
-        'nik' => $pengunjung->nik,
-        'fakultas' => $pengunjung->fakultas,
-        'prodi' => $pengunjung->prodi,
-        'keperluan' => $request->keperluan,
-        'no_telp' => $pengunjung->no_telp,
-    ]);
+    public function storeAnggota(Request $request)
+    {
+        $request->validate([
+            'identitas' => 'required|string|max:255',
+            'tanggal_kunjungan' => 'required|date',
+            'keperluan' => 'required|string|max:255',
+        ]);
 
-    return redirect()->route('kunjungan.anggota')->with('success', 'Selamat datang di Lab Komputer!');
-}
+        // Cek pengunjung berdasarkan NPM atau NIK
+        $existingMember = Kunjungan::where('npm', $request->identitas)
+            ->orWhere('nik', $request->identitas)
+            ->first();
 
+        if (!$existingMember) {
+            return redirect()->back()
+                ->with('error', 'NPM/NIK tidak ditemukan! Silakan daftar sebagai pengunjung baru.')
+                ->with('npm_nik', $request->identitas);
+        }
 
+        // Cek apakah sudah berkunjung hari ini
+        $todayVisit = Kunjungan::where(function($query) use ($request) {
+                $query->where('npm', $request->identitas)
+                      ->orWhere('nik', $request->identitas);
+            })
+            ->whereDate('tanggal_kunjungan', $request->tanggal_kunjungan)
+            ->first();
+
+        if ($todayVisit) {
+            return redirect()->back()
+                ->with('error', 'Anda sudah mengisi form kunjungan untuk hari ini!')
+                ->with('npm_nik', $request->identitas);
+        }
+
+        try {
+            Kunjungan::create([
+                'tanggal_kunjungan' => $request->tanggal_kunjungan,
+                'nama' => $existingMember->nama,
+                'npm' => $existingMember->npm,
+                'nik' => $existingMember->nik,
+                'fakultas' => $existingMember->fakultas,
+                'prodi' => $existingMember->prodi,
+                'pekerjaan' => $existingMember->pekerjaan,
+                'keperluan' => $request->keperluan,
+                'no_telp' => $existingMember->no_telp,
+                'jenis_pengunjung' => $existingMember->jenis_pengunjung
+            ]);
+
+            return redirect()->back()->with([
+                'success' => 'Kunjungan anggota berhasil dicatat!',
+                'npm_nik' => $request->identitas
+            ]);
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Terjadi kesalahan! Silakan coba lagi.');
+        }
+    }
 }
